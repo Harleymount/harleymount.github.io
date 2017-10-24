@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bioinformatics [HM]</title>
+<style>
+	body {
+		max-width:1000px;
+		padding:50px;
+		line-height: 120%;
+		font-family: Helvetica,sans-serif;
+		text-align: justify;
+		/*margin-bottom: 200px;*/
+	}
+	pre {
+		background: #eeeeee;
+		padding: 5px;
+		border: 1px dashed #bbbbbb;
+	}
+	pre.file {
+		background: #eeeeff;
+		border: 1px dotted #bbbbbb;
+	}
+	p {
+		/*text-indent: 20px;
+		margin-bottom: 0px;
+		margin-top: 0px;*/
+	}
+	h2 {
+		margin-top: 50px;
+	}
+	details {
+		border: 1px dotted #aaaaaa;
+		padding: 10px;
+		margin-bottom:5px;
+	}
+	summary {
+		font-weight: bold;
+		cursor:pointer;
+		/*color: darkblue;*/
+	}
+	summary:hover{
+		text-decoration: underline;
+	};
+</style>
+</head>
+
+<meta name="keywords" content="Harley, O'Connor, Mount, Bioinformatics, BFG, BFG-Y2H, reference, assembly, genomics, proteomics, sequencing, nanopore, analysis">
+
+
+<body>
+
+<h1><b>Harley's Bioinformatics Pipelines</b></h1>
+<p><b>harley.mount@mail.utoronto.ca</b></p>
+<br>
+<div id="toc_container">
+<p class="toc_title"><b>Pipelines & Protocols</b></p>
+<ul class="toc_list"">
+  <li><a href="#SQL">Accessing the Ensminger lab MySQL Database</a>
+  <ul>
+    <li><a href="#Request">Requesting a user account</a></li>
+    <li><a href="#Access">Accessing the database</a></li>
+  </ul>
+</li>
+<li><a href="#Assembly">Assembling bacterial genomes</a></li>
+  <ul>
+    <li><a href="#TRIM">Trimming Illumina Reads</a></li>
+    <li><a href="#DL">Downloading SPAdes</a></li>
+    <li><a href="#assemble">Assemble a genome</a></li>
+  </ul>
+
+<li><a href="#SNPs">Reference assembly & SNP calling</a></li>
+<ul>
+    <li><a href="#TRIM2">Trimming Illumina Reads</a></li>
+    <li><a href="#build">Preparing the reference</a></li>
+    <li><a href="#mapping">Mapping reads to a reference</a></li>
+    <li><a href="#bam">Convert SAM to BAM</a></li>
+    <li><a href="#sort">Sort the BAM file</a></li>
+    <li><a href="#index">Index the BAM file</a></li>
+    <li><a href="#AlignQC">Whole genome alignment quality control</a></li>
+    <li><a href="#realign">Realign at indels</a></li>
+    <li><a href="#dedup">Remove PCR duplicates</a></li>
+    <li><a href="#reindex">Index final BAM output</a></li>
+    <li><a href="#coverage">Calculate average coverage</a></li>
+  </ul>
+
+<li><a href="#RCPPCR">RCP-PCR barcode calling V1.0</a></li>
+<ul>
+    <li><a href="#Background">Background Information</a></li>
+    <li><a href="#install">Installation</a></li>
+    <li><a href="#setup">Setup</a></li>
+    <li><a href="#phi">Remove PhiX reads from RCP-PCR reads</a></li>
+    <li><a href="#convert">Convert FastQ to Fasta</a></li>
+    <li><a href="#blast">BLAST against vector database</a></li>
+    <li><a href="#identify">Identify barcodes</a></li>
+    <li><a href="#count">Count barcodes</a></li>
+    <li><a href="#call">Call barcodes</a></li>
+    <li><a href="#score">Score wells</a></li>
+    <li><a href="#visual">Visualize</a></li>
+    <li><a href="#write">Write to spreadsheet</a></li>
+  </ul>
+
+<li><a href="#BFG">BFG-Y2H analysis</a></li>
+<li><a href="#Nanopore">Nanopore spacer loss</a></li>
+<ul> 
+    <li><a href="#Convert2">Convert Fast5 to FastQ</a></li>
+    <li><a href="#map2">Map to CRISPR array</a></li>
+    <li><a href="#convert3">Convert SAM to BAM</a></li>
+    <li><a href="#sort2">Sort BAM files</a></li>
+    <li><a href="#coverage2">Find coverage across array</a></li>
+    <li><a href="#process">Process output for spacer coverage</a></li>
+    <li><a href="#visualize2">Make a heatmap</a></li>
+    <li><a href="#merge">Merge spacer coverage data</a></li>
+  </ul>
+</div></br>
+
+<!-- ##################################SQL############################ -->
+
+<br>
+	<h2 id='SQL'>Accessing the Ensminger effector MySQL database</h2>
+	<h3 id='Request'>Requesting a user account</h3>
+	<p>Before accessing the database you will have to request a user account. Currently I am the provider of user accounts, so you will have to email me.</p>
+	<h3 id='Access'>Accessing the database</h3>
+	<p>To access the database you can download an SQL interface like MySQLworkbench (free) or Navicat (>. Open your interface of choice and enter the information below in to login.
+<pre><b>Hostname:</b>ensminger-lab.cdnknku4somf.ca-central-1.rds.amazonaws.com
+<b>Port:</b>3306
+<b>username:</b>your provided username</pre>
+	<p>Query at your will. Most user accounts will have unlimited queries per day with no table editing priveliges.</p>
+	</br>
+	
+
+<!-- ##################################ASSEMBLY############################ -->
+
+<br>
+	<h2 id='Assembly'>Assembling a bacterial genome</h2>
+	<p>If you've recently performed next-generation sequencing and would like to assemble your reads into a bacterial genome this is the pipeline for you! This code makes use of the SPAdes assembler, which has historically proven to give the largest assemblies at the time of writing [October 2017] of those tried (AbySS, Velvet, SPAdes, geneious assembler).</p>
+	<h3 id='TRIM'>Trimming Illumina reads</h3>
+
+<h3>Requirements</h3>
+<p>You will need access to a unix shell with homebrew to install any dependencies like git.</p> <p>If you cannot get certain packages by homebrew you will need to manually download the binaries and put them in your path as described below for SPAdes.</p>
+<code><pre>>/usr/bin/ruby -e ">curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"</pre></code>
+		
+<code><pre>>brew install trimmomatic</pre></code>
+<code><pre>>trimmomatic PE read1.fastq read2.fastq output_forward_paired.fastq output_forward_unpaired.fastq
+output_reverse_paired.fastq output_reverse_unpaired.fastq 
+ILLUMINACLIP:/Users/Harley\ Mount/Trimmomatic-0.36/adapters/NexteraPE-PE.fa:2:30:10:8:true LEADING:20 TRAILING:20 
+SLIDINGWINDOW:4:20 MINLEN:36</pre></code>
+<p>The code above applies a clipping feature to remove Illumina adapter sequence from reads found at their 3' ends. This program looks for the illumina adapters sequence in a directory that is installed with trimmomatic, <b>this directory will require adjustment for your usage</b>. The code also applies quality filters the to 5' and 3' ends of reads to trim off those that are less than a certain quality (Qscore of 20) and then applies a sliding window which scans accross the reads and removes the trailing nucleotides if the window falls below a Q score average of 20 across the four nucleotide calls in the window. Lastly if any reads are less than 36 nucleotides they are discarded.</p>
+<p>With your freshly trimmed and paired reads (stored as output_paired_forward.fastq and output_reverse_paired.fastq) you can begin to use SPAdes to assemble your genome</p>
+<h3 id='DL'>Download SPAdes</h3>
+<code><pre>>curl http://spades.bioinf.spbau.ru/release3.5.0/SPAdes-3.5.0-Darwin.tar.gz -o SPAdes-3.5.0-Darwin.tar.gz</pre></code>
+<code><pre>>tar -zxf SPAdes-3.5.0-Darwin.tar.gz</pre></code>
+<p>With SPAdes downloaded to your home directory you will want to be able to run it from your terminal without specifying the path everytime. To do so add the location of the SPAdes binary to your PATH. The PATH is where unix looks for binaries that it knows about. To add the directory of binaries you just installed to your PATH follow the code below:</p>
+<code><pre>
+>vi .bash_profile
+</pre></code>
+<p>Opening the bash profile will allow us to make changes to the script that is run everytime terminal is opened. With the bash_profile open paste the following code into the editor by first entering insert mode. To do this you press the letter i on your keyboard. Insert will then appear at the bottom. Then you can paste the code into the bash_profile. To save your changes exit insert mode by pressing esc. After pressing esc. you can then save the changes by typing 'ZZ' (no qutotation marks).</p>
+<code><pre>export PATH="/Users/Harley/SPAdes-3.11.1-Darwin/bin:PATH"</pre></code>
+<p>After changing your bash_profile you will need to reload the terminal to make the changes take effect. Test the changes by typing spades.py, it should initialize the program and provide some usage information.</p>
+<h3 id='assemble'>Assemble a genome</h3>
+<code><pre>>spades.py -k 21,33,55,77 --careful output_forward_paired.fastq output_reverse_paired.fastq 
+-o /Users/Harley/Desktop/</pre></code>
+</br>
+
+<!-- ##################################SNP CALLING############################ -->
+
+<br>
+
+<h2 id='SNPs'>Reference assembly & SNP calling</h2>
+<p>When mapping FASTQ reads to a reference genome the upstream trimming step is identical to assembling a genome.</p>
+<h3 id='TRIM2'>Read quality control</h3>
+<code><pre>>trimmomatic PE read1.fastq read2.fastq output_forward_paired.fastq output_forward_unpaired.fastq
+output_reverse_paired.fastq output_reverse_unpaired.fastq 
+ILLUMINACLIP:/Users/Harley\ Mount/Trimmomatic-0.36/adapters/NexteraPE-PE.fa:2:30:10:8:true LEADING:20 TRAILING:20 
+SLIDINGWINDOW:4:20 MINLEN:36</pre></code>	
+<h3 id='Map'>Mapping reads to a reference genome</h3>
+<p>Choosing a good read mapper depends on what you hope to achieve in terms of identifying SNPs , genomic rearrangements etc. Canonically bowtie2 is a fast read mapper with high enough sensitivity to identify SNPs across a genome.</p>
+<h4 id='build'>Generate and index a reference genome</h4>
+<code><pre>>bowtie2-build reference.fa name_to_refer_to</pre></code>
+<p>here we generate an indexed reference. When using bowtie we will refer it to the reference based on the name we choose as the last option of the above command.</p>	
+<h4 id='mapping'>Map your trimmed reads to your reference</h4>
+<code><pre>>bowtie2 --phred33 -p 4 --local -t -x name_to_refer_to -X 2000 
+-1 output_paired_forward.fastq -2 output_reverse_paired.fastq -S sample.sam</pre></code>
+<p>This command will take our fastq reads and begin to map them to a reference genome. This code can be quite CPU intensive and will take about 30 minutes for a diploid yeast genome with about 60X coverage using 4 processors.</p>	
+<h4 id='bam'>Generate BAM from SAM file</h4>
+<code><pre>>Picard SamFormatConverter I=sample.sam O=sample.bam</pre></code>
+<p>This command converts the large SAM file to BAM format, which is used for all downstream processing. The SAM file can be deleted once each BAM is generated.</p>	
+<h4 id='sort'>Sort BAM file and add readgroups</h4>
+<code><pre>>Picard AddOrReplaceReadGroups I=sample.bam O=sample_sorted.bam 
+SORT_ORDER=coordinate RGLB=NA RGPL=ILLUMINA RGPU=NA RGSM=<b>Put_sample_name_here</b></pre></code>
+<p>This command converts the large SAM file to BAM format, which is used for all downstream processing. The SAM file can be deleted once each BAM is generated.</p>	
+<h4 id='index'>Index</h4>
+<code><pre>>Picard BuildBamIndex I=sample_sorted.bam O=sample_sorted.bai </pre></code>
+<p>This command indexes your BAM file.</p>	
+<h3 id='AlignQC'>WGS alignment quality control</h3>
+<h4 id='realign'>Realign at indels</h4>
+<code><pre>>gatk -T RealignerTargetCreator -R reference.fa -I sample_sorted.bam -o sample_sorted.intervals</pre></code>
+<p>This command identifies the intervals where realignment is necessary.</p>	
+<code><pre>>gatk -T IndelRealigner -R reference.fa -I sample_sorted.bam -targetIntervals sample_sorted.intervals  
+-o sample_realigned.bam</pre></code>
+<p>This command realigns the BAM alignments in the intervals identified with the previous code.</p>	
+<h4 id='dedup'>Remove PCR duplicates</h4>
+<code><pre>>Picard MarkDuplicates I=sample_realigned.bam O=sample_final.bam</pre></code>
+<p>This command removes PCR duplicates.</p>	
+<h4 id='reindex'>Reindex the bam file</h4>
+<code><pre>>Picard BuildBamIndex I=sample_final.bam O=sample_final.bai</pre></code>
+<p>This command removes PCR duplicates.</p>	
+<h4 id='coverage'>Calculate average coverage</h4>
+<code><pre>>gatk -nt14 -DepthOfCoverage -dt NONE -R reference.fa -I sample_final.bam -o results.txt 
+--omitIntervalStatistics --omitDepthOutputAtEachBase --omitLocusTable</pre></code>
+<p>This command calculates average coverage.</p>	
+<h3 id='SNPs'>Calling SNPs with Mutect1 (diploid genomes)</h3>
+<code><pre>>export JAVA_HOME=`/usr/libexec/java_home -v '1.6*'`</pre></code>
+<p>The code above allows for the usage of Java1.6 which is required for Mutect1 for the entirety of the time you have the terminal window open. This is necessary to run the subsequent code:</p>
+<code><pre>>mutect1.1.4.jar --analysis_type Mutect --reference_sequence reference.fa --input_file:normal 
+--input_file:tumor test.bam --out results.txt </pre></code>
+<p>This code calls SNPs between the test case and its control sample. This code takes a long time to run (~1hr).</p>
+<code><pre>>grep -v REJECT results.txt>filtered_results.txt</pre></code>
+
+</br>
+
+
+
+<!-- ##################################RCP PCR############################ -->
+<br>
+
+<h2 id='RCPPCR'>RCP-PCR Analysis (Ensminger Lab Oligo Set)</h2>
+
+	<h3 id='Background'>Background Information</h3>
+	<p>This set of scripts can be used to analyze fastq files that contain RCP-PCR reads using the indexing scheme we designed at the Ensminger Lab (i.e. nextera XT plate indices, with custom indices for plate and row [see Yachie, N. et al. Pooled-matrix protein interaction screens using Barcode Fusion Genetics. Molecular Systems Biology 12, 863–863 (2016). supplementary table EV5). This approach is also geared towards using the PE read 2 sequencing primer:
+	<code>
+		<pre>
+>PE_read2_sequencing_primer
+5'-CGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT-3'</pre></code>
+To run this script the thing that needs to be changed from Nozomu's original scripts is the identify-barcode_v3.pl script which basically scans the FASTA and BLAST files and uses them to identify where the barcodes are located for each read. 
+
+Things that required changing: 
+<ul style="list-style-type:square">
+<li>made my own plate_tagassignment.csv file to be used to assign plate ID to reads (basically you have to format this based on the numbers of the indices you chose for forward and reverse plate indices; i.e. plate01-plate09)
+note: must check this file with BBEdit to make sure that there are no invisible line breaks after each line, which can give issues 
+<b>ALSO MAKE SURE FIRST ENTRY IS AD0000 with a made up plate tag pair to avoid issues with count data merging downstream!</b></li>
+<li>made my own bar2num.txt file to suit the indices I have chosen. I discovered that you can have the same numbers for several sequences, so I could have even not used the adding rows to the bottom layout for plates. I basically pretended I have 16 rows and 24 columns by stacking AD and DB plates with the same plate index, but each plate is only 96 wells. I could have just given the DB row indices numbers 1-8 instead of 9-16 and similarly for the column indices instead of 13-24 I could have used 1-12 still. Just a note for next time the code is run.  (see image below)</li>
+<li>Because RCP-PCR samples are likely run in the presence of PhiX you will need to remove them, this can be achieved using flexbar (see protocol below). </li>
+<li>All of the perl wrapper files need to be changed so they use the proper directories, and so do any directories listed within codes (i.e. identify-barcode_v4_HM.pl)</li></ul></p>
+
+	<h3 id='install'>Installation</h3>
+	<p>Clone the source code using git by running the following command:</p>
+	<code>
+		<pre>>git clone https://github.com/Harleymount/Scientific-Code.git</pre>
+	</code>
+	<p>cd to the cloned directory and unpack the tarball, and copy your filtered RCP-PCR reads as two fastq files into the working directory</p> 
+<code><pre>>tar -xzf RCP-PCR-Programs.tar.gz</pre></code>
+<code><pre>>cd RCP-PCR</pre></code>
+<code><pre>>cp path/to/my_R1.fastq RCP-PCR</pre></code>
+<code><pre>>cp path/to/my_R1.fastq RCP-PCR</pre></code>
+	</code>
+	<p>This will generate the directory where all of the analysis will take place, and also copy your fastq files to the working directory. Once this has completed successfully we can begin analysis</p>
+
+
+	<!-- ############### -->
+	<!-- ### RUNNING ### -->
+	<!-- ############### -->
+
+	<h3 id='setup'>Setup</h3>
+	<h4>Step 1: Generate Appropriate Directories</h4>
+	<p>We must make a set of directories where the perl scripts will output our desired files, without them the code fails.</p>
+	<code><pre>
+>mkdir fragmented_fasta
+>mkdir QC_and_BC
+>cd QC_and_BC
+>mkdir out.identification
+>mkdir out.count
+>mkdir sh.identification
+>mkdir sh.count
+>cd .. 
+>mkdir blast
+>cd blast 
+>mkdir out.primers_blast
+>mkdir sh.primers_blast
+>cd ..
+</pre></code>
+<h3 id='phi'>Remove PhiX</h3>
+<code><pre>>flexbar -r RCP_R1.fastq -p RCP_R2.fastq -b plate_adapter_fwd.fa -b2 plate_adapter_rev.fa -bk -u 8 -n 8</pre></code>
+<p>This code can be used to extract reads that share a common 5' and 3' sequence from PhiX genome sequence that remains unindexed. The forward and reverse adapter sequences should be found as the first 5' and 3' sequences at the ends of the reads. This obviously only works for amplicons with known constant sequences. If the first 8 nucleotides are indices use NNNNNNNN.</p>
+<p>plate_adapter_fwd.fa</p>
+<code><pre>>plate_adapter_forward
+NNNNNNNNTAACTTACGGAGTCGCTCTACG</pre></code>
+<p>plate_adapter_rev.fa</p>
+<code><pre>>plate_adapter_forward
+NNNNNNNNCAAGTGTTCGGATGGGATTCTTTAGGTCCTG</pre></code>
+
+
+<h3 id='convert'>Convert FASTQ to FASTA</h3>
+<code><pre>>perl fastq2fasta.pl RCP/directory/ R1.fastq R2.fastq</pre></code>
+<p>This code will use nozomus scripts to first convert my two fastq into many fasta files of 10,000 sequences long using fastq2fasta.pl </p>
+
+<h3 id='blast'>BLAST FASTA files against a reference database of vector sequences</h3>
+<h4 id='blast'>BLAST wrapper</h4>
+<code><pre>>perl /Users/Harley/Desktop/two_hyb_RCP/primers_blast_wrapper.pl RCP/directory/with/fastq 
+file_1.fna file_2.fna</pre></code>
+<p>The wrapper makes a bunch of shell scripts to run. Once the .sh files are made you can run them in the shell. Example shell script below, should be lots of these. 
+ </p>
+<code><pre>blastn -task blastn-short -strand plus -db /Users/Harley/Desktop/my_data/data/newconstseq.fna 
+-outfmt 10 -evalue 1e-3 -query /Users/Harley/Desktop/my_data/fragmented_fasta/RCP_S1_L001_R1_001_1.fna 
+-out /Users/Harley/Desktop/my_data/blast/out.primers_blast/RCP_S1_L001_R1_001_1.blast</pre></code>
+<p>cd to the directory where the shell scripts are and then modify them to allow execution.</p>
+<code><pre>>chmod +x ./primers_blast1.sh</pre></code>
+<p>then run</p>
+<code><pre>>./primers_blast1.sh</pre></code>
+<p>The script uses the sequence of the vector as a database to determine where the up and down sites flanking each barcode start and stop. It requires the constant sequences.fa file, which must be converted to an BLAST database.</p>
+<code><pre>>perl make_const-seq_fasta.pl const_seq.txt > const-seq.fa</pre></code>
+<code><pre>>makeblastdb -in /Users/Harley/Desktop/two_hyb_RCP/Data/db/newconstseq.fna -parse_seqids -dbtype nucl
+</pre></code>
+
+<p>const_seq.txt for Ensminger lab vectors (Cup1)</p>
+<code><pre>
+DBU1-primer,CCATACGAGCACATTACGGG
+DBU2-primer,GTTATCAGAGGTATGCGAGTTAG
+DBD1-primer,TCGATAGGTGCGTGTGAAGG
+DBD2-primer,CTTGACTGAGCGACTGAGG
+DBloxP-primer,aagtaagacgtcgagctttaagtaagt
+DBlox2272-primer,CGATCTATTTTGACAGAGTGCTGACA
+ADU1-primer,CCCTTAGAACCGAGAGTGTG
+ADU2-primer,TTATTGAGTGACGAACGGAGTG
+ADD1-primer,CTCCAGGGTTAGGCAGATG
+ADD2-primer,CAGCGGGATAGTGCGATTG
+ADloxP-primer,CAGCACTCTGTCAAAATAGATCGG
+ADlox2272-primer,GTGGCGGCCGTTACTTACTT
+loxP,ATAACTTCGTATAGCATACATTATACGAAGTTAT
+lox2272,ATAACTTCGTATAGGATACTTTATACGAAGTTAT
+PS1.0-primer,TAACTTACGGAGTCGCTCTACG
+PS2.0-primer,GGATGGGATTCTTTAGGTCCTG
+</pre></code>
+
+
+<h3 id='identify'>Infer barcode position based on BLAST coordinates</h3>
+<code><pre>>perl barcode-identification_wrapper.pl 
+/Users/Harley/Desktop/my_data RCP_PCR_R1_1.fna RCP_PCR_R2_1.fna ... #entire list of fna files</pre></code>
+<p>Running the wrapper makes a bunch of .sh files that are to be run to perform barcode calling 
+now with much editing the identify_barcode_v3.pl can be used once changing where it looks for the plate barcodes, changing the bar2num file and also a bit of how the barcode_matching function works to deal with undefined max values. I call the new version identify_varcode_v4_HM.pl which is compatible with our RCP-PCR style data. 
+Again the wrapper makes a bunch of SH files that need to be run, these will use the identify_barcode_v4_HM.pl script that was modified to accomodate my data. The command looks like this: 
+</p>
+<code><pre>>perl /Users/Harley/Desktop/my_data/identify-barcode_v4_HM.pl /Users/Harley/Desktop/my_data 
+RCP_S1_L001_R1_001_1 RCP_S1_L001_R2_001_1 > 
+/Users/Harley/Desktop/my_data/QC_and_BC/out.identification/RCP_S1_L001_001_1.dmp</pre></code>
+
+<p><b>Troubleshooting notes:</b> 
+<li>I have found that in the tagassignment.csv file the first plate name (usually AD001) always gets broken by the code, so make the first one a dummy combo or call it AD000 and give it a non existent pair P01-P16 for example to avoid this issue. </li>
+<li>the identify-barcode_v4_HM.pl file must be in the directory called QC_and_BC</li>
+<li>I also had to add a clause to prevent undefined max values from breaking the script; given on the advice of a perl help forum, I did see undefined max values when debugging </li>
+<li>you need to also make a new bar2num text file that looks like this to accomodate the indices Ive chosen</li>
+</p>
+<p>bar2num.txt</p>
+<code><pre>1,TCGCCTTA
+2,CTAGTACG
+3,TTCTGCCT
+4,GCTCAGGA
+5,AGCGTAGC
+6,CATGCCTA
+7,GTAGAGAG
+8,CCTCTCTG
+9,TAGATCGC
+10,CTCTCTAT
+11,TATCCTCT
+12,AGAGTAGA
+13,GCGTAAGA
+14,ACTGCATA
+15,AAGGAGTA
+16,CTAAGCCT
+1,GTGAACCGA
+2,GCACAAAAC
+3,CTGTCTTCG
+4,GACGCGACT
+5,CAGCCCATA
+6,AGATATCTG
+7,AATACGCAC
+8,TATCGTGCC
+9,AGCCAAGTG
+10,CAAAACACG
+11,GCTTCTGTC
+12,TCAGCGCAG
+13,ATACCCGAC
+14,GTCTATAGA
+15,CACGCATAA
+16,CCGTGCTAT
+1,CAAGTGTTC
+2,AGGACATTC
+3,CACTAATGG
+4,AGCCTGATG
+5,TTACGCTAA
+6,ACTCTCCGT
+7,GTCGATGCA
+8,ACGGGAATT
+9,CGCGCCCAG
+10,ACTAGTTTG
+11,AGTATTACA
+12,AGGTTGGGT
+13,CTTGTGAAC
+14,CTTACAGGA
+15,GGTAATCAC
+16,GTAGTCCGA
+17,AATCGCATT
+18,TGCCTCTCA
+19,ACGTAGCTG
+20,TTAAGGGCA
+21,GACCCGCGC
+22,GTTTGATCA
+23,ACATTATGA
+24,TGGGTTGGA
+</pre></code>
+
+
+<h3 id='count'>Count the indentified barcodes</h3>
+<code><pre>>perl read-counting_wrapper.pl /Users/Harley/Desktop/my_data 
+/Users/Harley/Desktop/my_data/QC_and_BC/out.identification/RCP_S1_L001_001_1.dmp
+</pre></code>
+<p>Running the wrapper makes a bunch of .sh files that are to be run to perform barcode counting. The sh files look like this:
+</p>
+<code><pre>>perl count_read_v2.pl 
+/Users/Harley/Desktop/my_data/QC_and_BC/out.identification/RCP_S1_L001_001_1.dmp > 
+/Users/Harley/Desktop/my_data/QC_and_BC/out.count/RCP_S1_L001_001_1.dmp</pre></code>
+<p>Count files are generated for all barcode calling files in out.identification. These files must then be merged using:</p>
+<code><pre>>perl /Users/Harley/Desktop/my_data/merge_count-data.pl count_1.out ... # count files > merged_count.dmp</pre></code>
+<p>[note: replace ... with all of your count files]</p>
+<h3 id='call'>Call barcodes based on counts</h3>
+<code><pre>>perl call_barcode.pl 
+/Users/Harley/Desktop/my_data/QC_and_BC/out.count/RCP_S1_L001_001_1.dmp >barcode_calls.dmp
+</pre></code>
+<p>This code calls barcodes.</p>
+<h3 id='score'>Scores barcode calls</h3>
+<code><pre>>perl score_well.pl /Users/Harley/Desktop/my_data/QC_and_BC/Data/barcode_calls.dmp > well_scores.dmp
+</pre></code>
+<p>QC info for barcode calls.</p>
+<h3 id='visual'>Visualize barcode called wells for each plate</h3>
+<code><pre>>visualize.well_info.pl 
+/Users/Harley/Desktop/my_data/QC_and_BC/Data/well_scores.dmp > visual.xls
+</pre></code>
+<p>Visualize barcode calls across plates.</p>
+<h3 id='write'>Write barcode calls to excel spreadsheet</h3>
+<code><pre>>perl print_spreadsheet.well_info.pl /Users/Harley/Desktop/my_data/QC_and_BC/Data/well_scores.dmp > test.tsv
+</pre></code>
+<p>Write your precious barcode identities to a spreadsheet.</p>
+</br>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ##################################BFG Y2H ############################ -->
+
+
+
+
+
+
+
+
+
+<!-- ##################################Nanopore spacer loss script ############################ -->
+<br>
+
+<h2 id='Nanopore'>Nanopore CRISPR spacer-loss pipeline</h2>
+<h3 id='Convert2'>Convert FAST5 files into FASTQ</h3> 
+	<p>Nanopore sequencers output reads as fast5 format. Convert them in parallel using this command.</p>
+<code><pre>>cd directory_with_reads</pre></code>
+<code><pre>>ls | grep -E '\.fast5$'| parallel -j 0 'poretools fastq {} > {}.fastq' </pre></code>
+<p>For this code to work you will use a .genome file which can be generated with IGV. This is a free genome sequencing alignment visualization software with several other functionalities. You generate a .BED file as a .csv essentially it contains spacer information in the format below. You can import this as well as a fasta reference sequence to match and define the spacer locations. Then you can export the .genome file as well.</p>
+<p>spacers.bed</p>
+<code><pre>CR628339.1	46479	46679	3'flank
+CR628339.1	46424	46455	1
+CR628339.1	46364	46395	2
+CR628339.1	46304	46335	3
+CR628339.1	46244	46275	4
+</pre></code>
+
+<p>With the .genome file use the following command to index the annotated reference using GMAP.</p>
+<code><pre>>map_build -d pLENS.genome reference.fasta</pre></code>
+<h3 id='map2'>Map to the CRISPR array</h3>
+<p>With the .genome file indexed by GMAP use the following command to map each read to the annotated reference using GMAP.</p>
+<code><pre>>ls | grep -E '\.fastq$' | parallel -j 0 ‘gmap -d pLENS.genome -A {} -f samse > {}.sam’</pre></code>
+<h3 id='convert3'>Convert the SAM file to BAM</h3>
+<p>Generate a BAM file for downstream use.</p>
+<code><pre>>ls | grep -E '\.sam$' | parallel 'Picard SamFormatConverter I={} O={}.bam'</pre></code>
+<h3 id='sort2'>Sort the BAM file</h3>
+<p>Sort each BAM file</p>
+<code><pre>>ls | grep -E '\.bam$' | parallel 'Picard AddOrReplaceReadGroups I={} O={}_sorted.bam SORT_ORDER=coordinate RGLB=NA 
+RGPL=Nanopore RGPU=NA RGSM=<b>SAMPLE_NAME_HERE</b>'</pre></code>
+<h3 id='coverage2'>Use Bedtools to map coverage across the array for each read</h3>
+<p>Map coverage for each base across the array, this information will be used to determine average spacer coverage.</p>
+<code><pre>>ls | grep -E '\_sorted.bam$' | parallel 'bedtools genomecov -d -split -ibam {} -g newflankspacers.bed > {}.tdt'</pre></code>
+<h3 id='process'>Find average spacer coverage with Python</h3>
+<p>Determines average spacer coverage using the annotations file.</p>
+<code><pre>>mkdir tdtfiles</pre></code>
+<code><pre>>ls | grep -E '\.tdt$' | parallel 'cp {} tdtfiles'</pre></code>
+<code><pre>
+#python script to iterate over all of the bedtools .tdt files and determine the 
+#average coverage for each .bam file in each spacer 
+#make sure to put the spacers.bed file in the same directry as the tdt files 
+
+
+list_of_spacers=[]
+regions=open(‘flankspacers.bed', 'r')
+region=regions.readline()
+
+while region != '':
+    region=region.strip().split('\t')
+    list_of_spacers.append((region[1], region[2], region[3]))
+    region=regions.readline()
+
+
+import os 
+from multiprocessing import Pool
+
+
+
+def average_coverage():
+    for filename in os.listdir(os.getcwd())[1:]:
+        coverage_file=open(filename, 'r')
+        line=coverage_file.readline()
+        cov_dict={}
+        count_dict={}
+        line_list=[]
+        while line != '':
+            line=line.strip().split('\t')
+            line_list.append(line)
+            for item in list_of_spacers:
+                if line[1] >= item[0] and line[1] <= item[1]:
+                    if item[2] not in cov_dict:
+                        cov_dict[item[2]]=int(line[2])
+                    elif item[2] in cov_dict:
+                        cov_dict[item[2]] += int(line[2])
+            line=coverage_file.readline()
+        sample_average_coverage=[]
+        for item in list_of_spacers:
+            distance=(int(item[1])-int(item[0])+1)
+            count_dict[item[2]]=distance
+        for key, value in cov_dict.items():
+            if key in count_dict:
+                sample_average_coverage.append((key, cov_dict[key]/count_dict[key]))
+        import csv
+        with open(filename+'.csv', 'w') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerows(sample_average_coverage)
+            
+
+pool = Pool(processes=4) 
+pool.map(average_coverage(), os.listdir(os.getcwd())[1:]) 
+
+
+
+</pre></code>
+
+
+<h2 id='merge'>Process spacer output with R and merge data</h2>
+<p>Merges python files into one dataframe and outputs it as a CSV</p>
+<code><pre>
+
+
+files <- list.files(path="/Users/Harley/Desktop/test ", pattern="*.csv", full.names=T, recursive=FALSE)
+
+length_dataframe=read.csv(files[1], header=F)
+column_name<-unlist(strsplit(files[1], '_'))[grep('read', unlist(strsplit(files[1], '_')))]
+colnames(length_dataframe)<-c('spacer',column_name)
+
+for (i in files){
+    new_data=read.csv(i, header=F)
+    column_name<-unlist(strsplit(i, '_'))[grep('read', unlist(strsplit(i, '_')))]
+    length_dataframe<-cbind(length_dataframe, new_data$V2)
+}
+
+
+write.csv(length_dataframe, "Matrix_output.csv")
+</pre></code>
+
+
+
+<h3 id='visualize2'>Process spacer output with R and merge data</h3>
+<p>If you want to filter out samples (i.e. those that lack coverage in 5' and 3' flanks) you can open in excel and transpose it, then filter out on arrays by some cutoff 
+
+Once filtered you can open the dataset in cluster3 as tdt or csv file. 
+
+Once clustered you can open the .cdt file in treeview to make a nice heatmap figure out of it
+
+to uniquely color certain subsections of the image you can draw a rectangle around the region and merge it to a copy of the heatmap image, then magic select the contents of the rectangle and layer via copy it. Then you can adjust hue/brightness/saturation to alter its color scheme for that region specifically. 
+</p>
+</br></ul></div>
+
+
+<!-- ##################################END OF PIPELINES ############################ -->
+
+
+	<div style="margin-top: 100px; font-size: 8pt;text-align:center;">
+		<p><a href="http://creativecommons.org/licenses/by-sa/4.0/">CC-BY-SA</a> The Ensminger Lab, University of Toronto, 2017</p>
+	</div>
+
+
+
+</body>
+</html>
+
+<!DOCTYPE html>
+
+
+
+
